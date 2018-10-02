@@ -1220,7 +1220,7 @@ public class AnchorClusterer {
 	 * @param predictionFile name of output prediction .txt file
 	 * @throws IOException
 	 */
-	public static Vector<MobilePrediction> clusterMateClusters(File clusterIn, File clusterIndex, int overlap, int maxdist) throws IOException{
+	public static Vector<MobilePrediction> clusterMateClusters(File clusterIn, File clusterIndex, int overlap, int maxdist) {
 		
 		SAMFileReader input = new SAMSilentReader(clusterIn, clusterIndex);
 		SAMFileReader input2 = new SAMSilentReader(clusterIn, clusterIndex);	

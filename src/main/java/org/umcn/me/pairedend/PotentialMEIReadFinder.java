@@ -163,9 +163,85 @@ public class PotentialMEIReadFinder {
 				logger.error(e.getMessage());
 			}
 		}
-		   
 	}
-	
+
+	private static Options addCmdOptions() {
+		Options options = new Options();
+
+		OptionBuilder.withArgName("BAM File");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("BAM file containing mapped and unmapped paired-end reads" +
+				" against human reference genome");
+
+		options.addOption(OptionBuilder.create("in"));
+
+		OptionBuilder.withArgName("prefix");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Output prefix for BAM files and fq files" +
+				" containing supporting potential MEI paired-end reads");
+
+		options.addOption(OptionBuilder.create("out"));
+
+		OptionBuilder.withArgName("Tool Name");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Tool used for read mapping against reference");
+
+		options.addOption(OptionBuilder.create("tool"));
+
+		OptionBuilder.withDescription("use this option (-split) if you want to include split reads");
+
+		options.addOption(OptionBuilder.create("split"));
+
+		OptionBuilder.withArgName("int");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Minimum size of clipped sequence for a split-read. Only used " +
+				"when -split is supplied.");
+
+		options.addOption(OptionBuilder.create("minclip"));
+
+		OptionBuilder.withArgName("int");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Maximum size of clipping for the end opposite of the end which has a " +
+				"minimum clipping of at least the number specified by -minclip. Only used " +
+				"when -split is supplied.");
+
+		options.addOption(OptionBuilder.create("maxclip"));
+
+		OptionBuilder.withArgName("int");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Minimum average base quality for clipped read. Default = " + min_avg_qual);
+
+		options.addOption(OptionBuilder.create("min_avg_qual"));
+
+		OptionBuilder.withArgName("dir");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Tmp directory to use, when writing large files");
+
+		options.addOption(OptionBuilder.create("tmp"));
+
+		OptionBuilder.withArgName("int");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Alter the number of records in memory (increase to decrease number of file handles). Default: " + SAMWriting.MAX_RECORDS_IN_RAM);
+
+		options.addOption(OptionBuilder.create("max_memory"));
+
+		OptionBuilder.withArgName("string");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Use property file instead of command line arguments, command line arguments will be skipt. Values in property file will be used");
+
+		options.addOption(OptionBuilder.create("properties"));
+
+		OptionBuilder.withArgName("int");
+		OptionBuilder.hasArg();
+		OptionBuilder.withDescription("Minimum mapq needed for anchors. ONLY USED when -tool is unspecified. Default: " + min_anchor_mapq );
+
+		options.addOption(OptionBuilder.create("mapq"));
+
+		return options;
+	}
+
+	// =================================================================================================================
+
 	//TODO remove duplicate code for this function
 	public static void runFromProperties(Properties props) throws IOException {
 		
@@ -344,7 +420,7 @@ public class PotentialMEIReadFinder {
 		
 	}
 
-	public static void runPotentialMEIFinder(String inFile, PrintWriter outFq, SAMFileWriter outSam, String mappingTool,
+	private static void runPotentialMEIFinder(String inFile, PrintWriter outFq, SAMFileWriter outSam, String mappingTool,
 			boolean useSplit, int minClipping, int maxClipping, String readGroupPrefix) {
 		
 		File inBam = new File(inFile);
@@ -352,16 +428,14 @@ public class PotentialMEIReadFinder {
 																minClipping, maxClipping, min_avg_qual, min_anchor_mapq);
 		logger.info("Skipping UM pairs?: " + skip_um_pairs);
 		potentialMEIReads.setSkippingOfUMPairs(skip_um_pairs);
+
 		//SAMFileHeader samFileHeader = potentialMEIReads.getSAMReader().getFileHeader();
 		
 		//File tmpFile = new File(tmp);
-		
-		
 
 		//If file already exists for 1st time then maybe program should issue an error?
 		//PrintWriter outFq = new PrintWriter(new FileWriter(outPrefix + "_potential.fq"), true);
 		//SAMFileWriter outputSam = SAMWriting.makeSAMWriter(new File(outPrefix + "_potential.bam"), samFileHeader, tmpFile, maxMemory, SAMFileHeader.SortOrder.unsorted, true);
-		
 
 		int c = 0;
 		int d = 0;
@@ -373,90 +447,11 @@ public class PotentialMEIReadFinder {
 				if(pair.hasSplitReadOfCertainSize()){
 					d++;
 				}
-
 		}
 	
 		//outFq.close();
 		//outputSam.close();
 		logger.info("Found nr of potential mobile pairs supporting MEI events: " + c);
 		logger.info("Of which " + d + " are of split-read nature.");
-
-
-	}
-	
-	private static Options addCmdOptions(){
-		Options options = new Options();
-		
-		OptionBuilder.withArgName("BAM File");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("BAM file containing mapped and unmapped paired-end reads" +
-				" against human reference genome");
-		
-		options.addOption(OptionBuilder.create("in"));
-		
-		OptionBuilder.withArgName("prefix");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Output prefix for BAM files and fq files" +
-				" containing supporting potential MEI paired-end reads");
-		
-		options.addOption(OptionBuilder.create("out"));
-		
-		OptionBuilder.withArgName("Tool Name");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Tool used for read mapping against reference");
-		
-		options.addOption(OptionBuilder.create("tool"));
-		
-		OptionBuilder.withDescription("use this option (-split) if you want to include split reads");
-		
-		options.addOption(OptionBuilder.create("split"));
-		
-		OptionBuilder.withArgName("int");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Minimum size of clipped sequence for a split-read. Only used " +
-				"when -split is supplied.");
-		
-		options.addOption(OptionBuilder.create("minclip"));
-		
-		OptionBuilder.withArgName("int");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Maximum size of clipping for the end opposite of the end which has a " +
-				"minimum clipping of at least the number specified by -minclip. Only used " +
-				"when -split is supplied.");
-		
-		options.addOption(OptionBuilder.create("maxclip"));
-		
-		OptionBuilder.withArgName("int");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Minimum average base quality for clipped read. Default = " + min_avg_qual);
-		
-		options.addOption(OptionBuilder.create("min_avg_qual"));
-		
-		OptionBuilder.withArgName("dir");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Tmp directory to use, when writing large files");
-		
-		options.addOption(OptionBuilder.create("tmp"));
-		
-		OptionBuilder.withArgName("int");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Alter the number of records in memory (increase to decrease number of file handles). Default: " + SAMWriting.MAX_RECORDS_IN_RAM);
-		
-		options.addOption(OptionBuilder.create("max_memory"));
-		
-		OptionBuilder.withArgName("string");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Use property file instead of command line arguments, command line arguments will be skipt. Values in property file will be used");
-		
-		options.addOption(OptionBuilder.create("properties"));
-		
-		OptionBuilder.withArgName("int");
-		OptionBuilder.hasArg();
-		OptionBuilder.withDescription("Minimum mapq needed for anchors. ONLY USED when -tool is unspecified. Default: " + min_anchor_mapq );
-		
-		options.addOption(OptionBuilder.create("mapq"));
-		
-		return options;
-		
 	}
 }

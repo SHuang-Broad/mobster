@@ -67,77 +67,31 @@ public class RefAndMEPairFinder {
 	
 	public static void main(String[] args) {
 		Options options;
-		File single = null;
-		File multiple = null;
-		File filtered = null;
-		String out;
-		String sampleName = "";
-		String tool = "";
-		Boolean paired;
-		Properties prop = new Properties();
-		
-		
-		HelpFormatter formatter = new HelpFormatter();
 		BasicConfigurator.configure();
-		
 		options = createCmdOptions();
-		
+
 		if(args.length == 0){
+			HelpFormatter formatter = new HelpFormatter();
 			formatter.printHelp("java -Xmx4g -jar RefAndMEPairFinder.jar" , options);
 		} else {
 			CommandLineParser parser = new GnuParser();
 			try {
 				long start = System.currentTimeMillis();
-				
 				CommandLine line = parser.parse(options, args);
-				
+
+				ValuesParsedFromPropertiesOrCmdLine valuesParsed;
 				if (line.hasOption("properties")) {
+					Properties prop = new Properties();
 					prop.load(new FileInputStream(new File(line.getOptionValue("properties"))));
-					single = new File(prop.getProperty(MobileDefinitions.INFILE_FROM_MOBIOME_MAPPING).trim());
-					//we are skipping the multiple input
-					
-					filtered = new File(prop.getProperty(MobileDefinitions.INFILE_FROM_POTENTIAL_MEI_FINDER).trim());
-					out = prop.getProperty(MobileDefinitions.OUTFILE).trim();
-					sampleName = prop.getProperty(MobileDefinitions.SAMPLE_NAME);
-					tool = prop.getProperty(MobileDefinitions.MOBIOME_MAPPING_TOOL);
-					paired = Boolean.parseBoolean(prop.getProperty(MobileDefinitions.PAIRED_END).trim());
-					MIN_POLYA_LEN = Integer.parseInt(prop.getProperty(MobileDefinitions.POLY_A_LENGTH).trim());
-					MAX_POLYA_MM = Integer.parseInt(prop.getProperty(MobileDefinitions.POLY_A_MAX_MISMATCHES).trim());
-					
-					if (prop.containsKey(MobileDefinitions.TMP)){
-						TMP = prop.getProperty(MobileDefinitions.TMP).trim();
-					} else {
-						TMP = System.getProperty("java.io.tmpdir");
-					}
-					if (prop.containsKey(MobileDefinitions.GRIPS_MAX_REFSEQ_MAPPING)){
-						MAX_MAPPINGS = Integer.parseInt(prop.getProperty(MobileDefinitions.GRIPS_MAX_REFSEQ_MAPPING));
-					}
-					
-					MEMORY = Integer.parseInt(prop.getProperty(MobileDefinitions.MEMORY).trim());
+					valuesParsed = new ValuesParsedFromPropertiesOrCmdLine(prop);
 				} else {
-					single = new File(line.getOptionValue("single"));
-					if(line.hasOption("multiple")){
-						multiple = new File(line.getOptionValue("multiple"));
-						logger.info("Checking for reads mapping to multiple superfamilies");
-					} else {
-						logger.info("Not checking for reads mapping to multiple superfamilies");
-					}
-					filtered = new File(line.getOptionValue("potential"));
-					out = line.getOptionValue("out");
-					tool = line.getOptionValue("tool", SAMDefinitions.MAPPING_TOOL_MOSAIK);
-					sampleName = line.getOptionValue("samplename", sampleName);
-					paired = line.hasOption("p");
-					MAX_MAPPINGS = Integer.parseInt(line.getOptionValue("max_mapping", Integer.toString(MAX_MAPPINGS)));
-					TMP = line.getOptionValue("tmp", System.getProperty("java.io.tmpdir"));
-					MEMORY = Integer.parseInt(line.getOptionValue("max_memory", Integer.toString(SAMWriting.MAX_RECORDS_IN_RAM)));
+					valuesParsed = new ValuesParsedFromPropertiesOrCmdLine(line);
 				}
-				logger.info("Using potential .bam file: " + filtered);
-				logger.info("Using output prefix: " + out);
-				logger.info("Mapping tool used for mobile mapping: " + tool);
-				logger.info("Paired-end reads: " + paired);
-				logger.info("Setting sample name to: " + sampleName);
-				
-				runRefAndMePairFinder(single, multiple, filtered, out, tool, paired, sampleName);
+
+				valuesParsed.log();
+
+				runRefAndMePairFinder(valuesParsed.single, valuesParsed.multiple, valuesParsed.filtered, valuesParsed.out,
+						valuesParsed.tool, valuesParsed.paired, valuesParsed.sampleName);
 				
 				long end = System.currentTimeMillis();
 				long millis = end - start;
@@ -230,11 +184,8 @@ public class RefAndMEPairFinder {
 		return options;
 	}
 
-	// =================================================================================================================
+	private static final class ValuesParsedFromPropertiesOrCmdLine {
 
-	//TODO remove the duplicated code associated with this code
-	public static void runFromPropertiesFile(Properties prop) throws IOException {
-		
 		File single = null;
 		File multiple = null;
 		File filtered = null;
@@ -242,69 +193,107 @@ public class RefAndMEPairFinder {
 		String sampleName = "";
 		String tool = "";
 		Boolean paired;
-		
+		File tmp;
+
+		ValuesParsedFromPropertiesOrCmdLine (Properties props) throws IOException {
+			single = new File(props.getProperty(MobileDefinitions.INFILE_FROM_MOBIOME_MAPPING).trim());
+			//we are skipping the multiple input
+
+			filtered = new File(props.getProperty(MobileDefinitions.INFILE_FROM_POTENTIAL_MEI_FINDER).trim());
+			out = props.getProperty(MobileDefinitions.OUTFILE).trim();
+			sampleName = props.getProperty(MobileDefinitions.SAMPLE_NAME);
+			tool = props.getProperty(MobileDefinitions.MOBIOME_MAPPING_TOOL);
+			paired = Boolean.parseBoolean(props.getProperty(MobileDefinitions.PAIRED_END).trim());
+			MIN_POLYA_LEN = Integer.parseInt(props.getProperty(MobileDefinitions.POLY_A_LENGTH).trim());
+			MAX_POLYA_MM = Integer.parseInt(props.getProperty(MobileDefinitions.POLY_A_MAX_MISMATCHES).trim());
+
+			if (props.containsKey(MobileDefinitions.GRIPS_MAX_REFSEQ_MAPPING)) {
+				MAX_MAPPINGS = Integer.parseInt(props.getProperty(MobileDefinitions.GRIPS_MAX_REFSEQ_MAPPING));
+			}
+
+			if (props.containsKey(MobileDefinitions.TMP)) {
+				TMP = props.getProperty(MobileDefinitions.TMP).trim() + File.separator + "mob_" + Long.toString(System.nanoTime());
+			} else {
+				TMP = System.getProperty("java.io.tmpdir") + File.separator + "mob_" + Long.toString(System.nanoTime());
+			}
+
+			tmp = new File(TMP);
+
+			if ( ! tmp.mkdir() ) {
+				throw new IOException("Can not create tmp directory: " + tmp);
+			}
+			MEMORY = Integer.parseInt(props.getProperty(MobileDefinitions.MEMORY).trim());
+		}
+
+		ValuesParsedFromPropertiesOrCmdLine (CommandLine line) throws IOException {
+			single = new File(line.getOptionValue("single"));
+			if(line.hasOption("multiple")){
+				multiple = new File(line.getOptionValue("multiple"));
+				logger.info("Checking for reads mapping to multiple superfamilies");
+			} else {
+				logger.info("Not checking for reads mapping to multiple superfamilies");
+			}
+			filtered = new File(line.getOptionValue("potential"));
+			out = line.getOptionValue("out");
+			tool = line.getOptionValue("tool", SAMDefinitions.MAPPING_TOOL_MOSAIK);
+			sampleName = line.getOptionValue("samplename", sampleName);
+			paired = line.hasOption("p");
+			MAX_MAPPINGS = Integer.parseInt(line.getOptionValue("max_mapping", Integer.toString(MAX_MAPPINGS)));
+			TMP = line.getOptionValue("tmp", System.getProperty("java.io.tmpdir"));
+			tmp = new File(TMP);
+			if ( ! tmp.mkdir() ) {
+				throw new IOException("Can not create tmp directory: " + tmp);
+			}
+			MEMORY = Integer.parseInt(line.getOptionValue("max_memory", Integer.toString(SAMWriting.MAX_RECORDS_IN_RAM)));
+		}
+
+		void log() {
+			logger.info("Using potential .bam file: " + filtered);
+			logger.info("Using output prefix: " + out);
+			logger.info("Mapping tool used for mobile mapping: " + tool);
+			logger.info("Paired-end reads: " + paired);
+			logger.info("Setting sample name to: " + sampleName);
+			logger.info("Using temp: " + TMP);
+		}
+	}
+
+	// =================================================================================================================
+
+	//TODO remove the duplicated code associated with this code
+	public static void runFromPropertiesFile(Properties prop) throws IOException {
+
 		long start = System.currentTimeMillis();
-		
-		single = new File(prop.getProperty(MobileDefinitions.INFILE_FROM_MOBIOME_MAPPING).trim());
-		//we are skipping the multiple input
-		
-		filtered = new File(prop.getProperty(MobileDefinitions.INFILE_FROM_POTENTIAL_MEI_FINDER).trim());
-		out = prop.getProperty(MobileDefinitions.OUTFILE).trim();
-		sampleName = prop.getProperty(MobileDefinitions.SAMPLE_NAME);
-		tool = prop.getProperty(MobileDefinitions.MOBIOME_MAPPING_TOOL);
-		paired = Boolean.parseBoolean(prop.getProperty(MobileDefinitions.PAIRED_END).trim());
-		MIN_POLYA_LEN = Integer.parseInt(prop.getProperty(MobileDefinitions.POLY_A_LENGTH).trim());
-		MAX_POLYA_MM = Integer.parseInt(prop.getProperty(MobileDefinitions.POLY_A_MAX_MISMATCHES).trim());
-		
-		if (prop.containsKey(MobileDefinitions.GRIPS_MAX_REFSEQ_MAPPING)) {
-			MAX_MAPPINGS = Integer.parseInt(prop.getProperty(MobileDefinitions.GRIPS_MAX_REFSEQ_MAPPING));
-		}
-		
-		if (prop.containsKey(MobileDefinitions.TMP)) {
-			TMP = prop.getProperty(MobileDefinitions.TMP).trim() + File.separator + "mob_" + Long.toString(System.nanoTime());			
-		} else {
-			TMP = System.getProperty("java.io.tmpdir") + File.separator + "mob_" + Long.toString(System.nanoTime());
-		}
-		
-		File tmp = new File(TMP);
-		
-		if ( ! tmp.mkdir() ) {
-			throw new IOException("Can not create tmp directory: " + tmp);
-		}
-		MEMORY = Integer.parseInt(prop.getProperty(MobileDefinitions.MEMORY).trim());
-		
-		logger.info("Using potential .bam file: " + filtered);
-		logger.info("Using output prefix: " + out);
-		logger.info("Mapping tool used for mobile mapping: " + tool);
-		logger.info("Paired-end reads: " + paired);
-		logger.info("Setting sample name to: " + sampleName);
-		logger.info("Using temp: " + tmp);
-		
+
+		ValuesParsedFromPropertiesOrCmdLine valuesParsed = new ValuesParsedFromPropertiesOrCmdLine(prop);
+		valuesParsed.log();
+
 		try {
 			
 			if (Boolean.parseBoolean(prop.getProperty(MobileDefinitions.GRIPS_SKIP_UU_EXCLUSION))){
-				runRefAndMePairFinderSkipUUChecking(single, multiple, filtered, out, tool, paired, sampleName);
+				runRefAndMePairFinderSkipUUChecking(valuesParsed.single, valuesParsed.multiple, valuesParsed.filtered,
+						valuesParsed.out, valuesParsed.tool, valuesParsed.paired, valuesParsed.sampleName);
 			} else {
-				runRefAndMePairFinder(single, multiple, filtered, out, tool, paired, sampleName);
+				runRefAndMePairFinder(valuesParsed.single, valuesParsed.multiple, valuesParsed.filtered, valuesParsed.out,
+						valuesParsed.tool, valuesParsed.paired, valuesParsed.sampleName);
 			}
 			
 			//cleanup files if necessary:
 			
 			if (Boolean.parseBoolean(prop.getProperty(MobileDefinitions.CLEANUP_FILES))) {
-				File datToDelete = new File(filtered.toString().replaceAll(".bam$", ".dat"));
-				File fqToDelete = new File(filtered.toString().replaceAll(".bam$", ".fq"));
-				File multipleBam = new File(single.toString().replaceAll(".bam$", ".multiple.bam"));
+				File datToDelete = new File(valuesParsed.filtered.toString().replaceAll(".bam$", ".dat"));
+				File fqToDelete = new File(valuesParsed.filtered.toString().replaceAll(".bam$", ".fq"));
+				File multipleBam = new File(valuesParsed.single.toString().replaceAll(".bam$", ".multiple.bam"));
 				
-				logger.info("Will delete: " + filtered.toString());
+				logger.info("Will delete: " + valuesParsed.filtered.toString());
 				logger.info("Will delete: " + datToDelete.toString());
 				logger.info("Will delete: " + fqToDelete.toString());
-				logger.info("Will delete: " + single.toString());
+				logger.info("Will delete: " + valuesParsed.single.toString());
 				logger.info("Will delete: " + multipleBam.toString());
 				
-				logger.info(filtered.toString() + " deleted? : " + filtered.delete());				
+				logger.info(valuesParsed.filtered.toString() + " deleted? : " + valuesParsed.filtered.delete());
 				logger.info(datToDelete.toString() + " deleted? : " + datToDelete.delete());
 				logger.info(fqToDelete.toString() + " deleted? : " + fqToDelete.delete());
-				logger.info(single.toString() + " deleted? : " + single.delete());
+				logger.info(valuesParsed.single.toString() + " deleted? : " + valuesParsed.single.delete());
 				logger.info(multipleBam.toString() + " deleted? : " + multipleBam.delete());
 			}
 			
@@ -320,8 +309,8 @@ public class RefAndMEPairFinder {
 		} catch (IOException e) {
 			logger.error("RefAndMEPairFinder -> Error in finding files: " + e.getMessage());
 		} finally {
-			if (tmp != null && ! tmp.delete() ){
-				logger.error("RefAndMEPairFinder -> Could not delete temp: " + tmp);
+			if (valuesParsed.tmp != null && ! valuesParsed.tmp.delete() ){
+				logger.error("RefAndMEPairFinder -> Could not delete temp: " + valuesParsed.tmp.getAbsolutePath());
 			}
 		}
 	}
@@ -344,15 +333,14 @@ public class RefAndMEPairFinder {
 		//TODO modify runRefAndMePairFinder to accept tool as a parameter, so different
 		//mapping tools can be used more easily with this class. Now it can still be done
 		//but multiple methods from this class need to be called seperately.
-		Vector<String> exclusionReads = new Vector<String>();
 		Map<String, MobileSAMTag> meReads;
 		
 		File nameSortedSingleBam = new File(singleBam.toString().replaceAll(".bam$","_nsorted.bam"));
 		
 		SAMWriting.writeSortedSAMorBAM(singleBam, nameSortedSingleBam, new File(TMP), MEMORY, SortOrder.queryname);
 		//SAMWriting.writeNameSortedSAMorBAM(singleBam, nameSortedSingleBam, new File(TMP), MEMORY);
-		
-		exclusionReads = getUUReadsMappingBothToME(nameSortedSingleBam);
+
+		Vector<String> exclusionReads = getUUReadsMappingBothToME(nameSortedSingleBam);
 		
 		meReads = getReadsMappingToME(nameSortedSingleBam, exclusionReads, tool);
 		
